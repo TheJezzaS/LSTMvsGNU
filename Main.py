@@ -161,6 +161,12 @@ class RNNModel(nn.Module):
 
         self.init_weights()
 
+        # ======== Weight tying ========
+        # This must be AFTER init_weights
+        # Only works if embedding size = hidden size
+        if ninp == nhid:
+            self.decoder.weight = self.encoder.weight
+
     def init_weights(self):
         initrange = 0.1 # according to paper
         self.encoder.weight.data.uniform_(-initrange, initrange)
@@ -243,7 +249,7 @@ def train_epoch(model, data, optimizer, criterion, bptt):
         # the paper gives clipping for larger models:
         # (units, clipping) = (650, 5), (1500, 10)
         # so by linear interpolation, (200, 2.35)
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 2.35)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 5)
         optimizer.step() #Update model parameters using gradients
 
         total_loss += loss.item()
@@ -273,7 +279,11 @@ def evaluate(model, data, criterion, bptt):
 ############################################
 def run_experiment(rnn_type, dropout, label):
     base_lr = 1.0
-    epochs = 17 #TODO: make 13
+
+    if 'no' in label:
+        epochs = 13
+    else:
+        epochs = 20
 
     model = RNNModel(
         rnn_type=rnn_type,
@@ -293,7 +303,7 @@ def run_experiment(rnn_type, dropout, label):
 
         # Zaremba LR decay according to paper uses 4, we use 10 for faster learning
         if epoch > 10:
-            lr = base_lr * (0.9 ** (epoch - 10))
+            lr = base_lr * (0.5 ** (epoch - 10))
             for param_group in optimizer.param_groups:
                 param_group["lr"] = lr
         else:
