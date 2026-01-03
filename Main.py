@@ -274,7 +274,7 @@ def evaluate(model, data, criterion, bptt):
 ############################################
 def run_experiment(rnn_type, dropout, label):
     base_lr = 1.0
-    epochs = 13
+    epochs = 17 #TODO: make 13
 
     model = RNNModel(
         rnn_type=rnn_type,
@@ -292,8 +292,8 @@ def run_experiment(rnn_type, dropout, label):
 
     for epoch in range(1, epochs + 1):
 
-        # Zaremba LR decay according to paper
-        if epoch > 4:
+        # Zaremba LR decay according to paper uses 4, we use 8 for faster learning
+        if epoch > 8:
             lr = base_lr * (0.5 ** (epoch - 4))
             for param_group in optimizer.param_groups:
                 param_group["lr"] = lr
@@ -313,6 +313,7 @@ def run_experiment(rnn_type, dropout, label):
             f"LR {lr:.4f} | Train PPL {tr:.2f} | Valid PPL {val:.2f} | Test PPL {te:.2f}"
         )
 
+    torch.save(model.state_dict(), f"{label}.pth")
     return train_ppl, val_ppl, test_ppl, base_lr, dropout
 
 
@@ -322,7 +323,10 @@ def run_experiment(rnn_type, dropout, label):
 if __name__ == "__main__":
     torch.manual_seed(1)
 
-    corpus = Corpus("PTB")
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    data_path = os.path.join(script_dir, "PTB")
+    corpus = Corpus(data_path)
+
     ntokens = len(corpus.dictionary)
 
     batch_size = 20
@@ -333,10 +337,10 @@ if __name__ == "__main__":
     valid_data = batchify(corpus.valid, batch_size)
 
     experiments = [
-        ("LSTM", 0.0, "LSTM no dropout"),
-        ("LSTM", 0.5, "LSTM dropout"),
-        ("GRU",  0.0, "GRU no dropout"),
-        ("GRU",  0.5, "GRU dropout"),
+        ("LSTM", 0.0, "LSTM_no_dropout"),
+        ("LSTM", 0.5, "LSTM_dropout"),
+        ("GRU",  0.0, "GRU_no_dropout"),
+        ("GRU",  0.5, "GRU_dropout"),
     ]
 
     results = {}
@@ -351,23 +355,27 @@ if __name__ == "__main__":
         print(f"{label:15s} | {train_ppl[-1]:6.2f} / {val_ppl[-1]:6.2f} / {test_ppl[-1]:6.2f}")
 
     ########################################
-    # PLOTTING (4 plots, 8 curves)
+    # PLOTTING
     ########################################
+    linestyles = ["-", "--", ":"]
+    colors = ["r", "g", "b"]  # Train, Test, Valid
 
-    linestyles = ["-", "--", ":"] # "-" for Train, "--" for Test
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    axes = axes.flatten()  # make indexing easier
 
-    plt.figure(figsize=(12, 7))
+    for ax, (label, (train_ppl, val_ppl, test_ppl, lr, dropout)) in zip(axes, results.items()):
+        ax.plot(train_ppl, linestyle=linestyles[0], color=colors[0], label="Train")
+        ax.plot(test_ppl, linestyle=linestyles[1], color=colors[1], label="Test")
+        ax.plot(val_ppl, linestyle=linestyles[2], color=colors[2], label="Valid")
 
-    for idx, (label, (train_ppl, val_ppl, test_ppl, lr, dropout)) in enumerate(results.items()):
-        plt.plot(train_ppl, label=f"{label} Train (LR={lr}, keep_prob={1 - dropout})", linestyle=linestyles[0])
-        plt.plot(test_ppl, label=f"{label} Test (LR={lr}, keep_prob={1 - dropout})", linestyle=linestyles[1])
-        plt.plot(val_ppl, label=f"{label} Valid (LR={lr}, keep_prob={1 - dropout})", linestyle=linestyles[2])
+        ax.set_title(f"{label}\nLR={lr}, keep_prob={1 - dropout}")
+        ax.set_xlabel("Epoch")
+        ax.set_ylabel("Perplexity")
+        ax.grid(True)
+        ax.legend()
 
-    plt.xlabel("Epoch")
-    plt.ylabel("Perplexity")
-    plt.title("PTB Experiments: LSTM/GRU, small 200-unit network")
-    plt.legend()
-    plt.grid(True)
+    plt.suptitle("PTB Experiments: LSTM/GRU, small 200-unit network", fontsize=16)
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
 
     plt.savefig("all_experiments.png", dpi=300)
     plt.show()
