@@ -244,7 +244,7 @@ def train_epoch(model, data, optimizer, criterion, bptt):
         # the paper gives clipping for larger models:
         # (units, clipping) = (650, 5), (1500, 10)
         # so by linear interpolation, (200, 2.35)
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 2.35)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 5)
         optimizer.step() #Update model parameters using gradients
 
         total_loss += loss.item()
@@ -292,9 +292,9 @@ def run_experiment(rnn_type, dropout, label):
 
     for epoch in range(1, epochs + 1):
 
-        # Zaremba LR decay according to paper uses 4, we use 8 for faster learning
-        if epoch > 8:
-            lr = base_lr * (0.5 ** (epoch - 4))
+        # Zaremba LR decay according to paper uses 4, we use 6 for faster learning
+        if epoch > 10:
+            lr = base_lr * (0.9 ** (epoch - 10))
             for param_group in optimizer.param_groups:
                 param_group["lr"] = lr
         else:
